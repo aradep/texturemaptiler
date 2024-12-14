@@ -1,10 +1,10 @@
 #-----------------------------------------------------------------------------------------------
-# TextureMapTiler
-# A tool for slicing texture maps into tiles
+# TextureMapTiler.py
+# A tool for cutting texture maps into tiles
 #
 # This software is bundled with ImageMagick. See ImageMagickLicense.txt for full details.
 #
-version= "Version: 1.0.0"
+version= "Version: 1.0.1"
 #
 #-----------------------------------------------------------------------------------------------
 
@@ -12,10 +12,6 @@ import os, sys, time, threading, tkinter as tk
 from tkinter import filedialog, scrolledtext, StringVar, Button, Label, Entry, Scale
 from concurrent.futures import ThreadPoolExecutor
 from imagemagickfunctions import convert_height, convert_layer1, convert_layer2, convert_layer3, convert_vcolor
-
-imagemagick_path = os.path.join(os.path.dirname(__file__), 'lib', 'imagemagick')
-magick_command = os.path.join(imagemagick_path, 'magick')
-os.environ["PATH"] = imagemagick_path + os.pathsep + os.environ["PATH"]
 
 # ----------------------------------------------------------------------------------------------
 # ------------------------------------------ GUI -----------------------------------------------
@@ -26,7 +22,6 @@ class tkGUI:
         self.root = root
         self.root.title("TextureMap Tiler")
         root.configure(bg="#1f2023")
-        self.is_processing = False
 
         # Left frame
         self.left_frame = tk.Frame(self.root, width=300, height=600, bg="#26282d")
@@ -36,6 +31,7 @@ class tkGUI:
         self.right_frame.grid(row=0, column=1, padx=(20,5), pady=(20,10), ipadx=5, ipady=5, sticky="n")
 
         # Variables
+        self.is_processing = False
         self.input_dir = StringVar()
         self.output_dir = StringVar()
         self.map_name = StringVar()
@@ -56,6 +52,12 @@ class tkGUI:
         self.vcolor_exporttoggle = tk.IntVar()
 
         # Tile Settings
+        self.height_tilelabel = StringVar(value='Height')
+        self.layer1_tilelabel = StringVar(value='Layer1')
+        self.layer2_tilelabel = StringVar(value='Layer2')
+        self.layer3_tilelabel = StringVar(value='Layer3')
+        self.vcolor_tilelabel = StringVar(value='Vcolor')
+
         self.height_tileresolution = StringVar(value=256)
         self.layer1_tileresolution = StringVar(value=1024)
         self.layer2_tileresolution = StringVar(value=1024)
@@ -80,8 +82,15 @@ class tkGUI:
         self.layer3_istilegrayscale = tk.IntVar(value=1)
         self.vcolor_istilegrayscale = tk.IntVar(value=0)
 
+        # Redirect stdout and error
+        self.old_stdout = sys.stdout
+        self.old_stderr = sys.stderr
+        sys.stdout = self
+        sys.stderr = self
+
         # Save on close
         root.protocol("WM_DELETE_WINDOW", self.on_close)
+        
 
 # ----------------------------------------------------------------------------------------------
 # ----------------------------------------- GUI ------------------------------------------------
@@ -94,7 +103,7 @@ class tkGUI:
         self.group1_label.grid(row=0, column=0, columnspan=3, pady=(0,5), sticky="n")
         
         # Input
-        self.input_label = Label(self.group1_frame, fg="white", bg="#26282d", text="Input:")
+        self.input_label = Label(self.group1_frame, fg="white", bg="#26282d", text="Input")
         self.input_label.grid(row=1, column=0, padx=2, pady=2, sticky="ne")
         self.input_entry = Entry(self.group1_frame, textvariable=self.input_dir, borderwidth=0, fg="white", bg="#1f2023", width=42)
         self.input_entry.grid(row=1, column=1, ipady=5, ipadx=4, pady=(0,5))
@@ -102,45 +111,45 @@ class tkGUI:
         self.input_browse_button.grid(row=1, column=2, pady=(0,3))
         
         # Output
-        self.output_label = Label(self.group1_frame, fg="white", bg="#26282d", text="Output:")
+        self.output_label = Label(self.group1_frame, fg="white", bg="#26282d", text="Output")
         self.output_label.grid(row=2, column=0, padx=2, pady=2, sticky="ne")
         self.output_entry = Entry(self.group1_frame, textvariable=self.output_dir, borderwidth=0, fg="white", bg="#1f2023", width=42)
         self.output_entry.grid(row=2, column=1, ipady=5, ipadx=4)
         self.output_browse_button = Button(self.group1_frame, highlightbackground="#26282d", activebackground="#26282d", activeforeground="white", fg="white", bg="#2d2f34", text="Browse", command=self.browse_output)
         self.output_browse_button.grid(row=2, column=2, pady=(1,0))
 
-        # ------# Group 2 - Filenames
+# ------# Group 2 - Filenames
         self.group2_frame = tk.Frame(self.left_frame, bg="#26282d")
         self.group2_frame.grid(row=1, padx=15, pady=(0, 30), column=0, sticky="n")
         self.group2_label = Label(self.group2_frame, fg="white", bg="#26282d", text="Input Files", font=("Helvetica", 10, "bold"))
         self.group2_label.grid(row=0, column=0, columnspan=4, pady=(0, 5), sticky="n")
 
         # Heightmap
-        self.height_label = Label(self.group2_frame, fg="white", bg="#26282d", text="Height:")
+        self.height_label = Label(self.group2_frame, fg="white", bg="#26282d", textvariable=self.height_tilelabel)
         self.height_label.grid(row=1, column=0, padx=2, pady=2, sticky="ne")
         self.height_entry = Entry(self.group2_frame, textvariable=self.height_name, borderwidth=0, fg="white", bg="#1f2023", width=50)
         self.height_entry.grid(row=1, column=1, ipady=5, ipadx=4, pady=(0, 5))
 
         # Layer 1
-        self.layer1_label = Label(self.group2_frame, fg="white", bg="#26282d", text="Layer 1:")
+        self.layer1_label = Label(self.group2_frame, fg="white", bg="#26282d", textvariable=self.layer1_tilelabel)
         self.layer1_label.grid(row=2, column=0, padx=2, pady=2, sticky="ne")
         self.layer1_entry = Entry(self.group2_frame, textvariable=self.layer1_name, borderwidth=0, fg="white", bg="#1f2023", width=50)
         self.layer1_entry.grid(row=2, column=1, ipady=5, ipadx=4, pady=(0, 5))
 
         # Layer 2
-        self.layer2_label = Label(self.group2_frame, fg="white", bg="#26282d", text="Layer 2:")
+        self.layer2_label = Label(self.group2_frame, fg="white", bg="#26282d", textvariable=self.layer2_tilelabel)
         self.layer2_label.grid(row=3, column=0, padx=2, pady=2, sticky="ne")
         self.layer2_entry = Entry(self.group2_frame, textvariable=self.layer2_name, borderwidth=0, fg="white", bg="#1f2023", width=50)
         self.layer2_entry.grid(row=3, column=1, ipady=5, ipadx=4, pady=(0, 5))
 
         # Layer 3
-        self.layer3_label = Label(self.group2_frame, fg="white", bg="#26282d", text="Layer 3:")
+        self.layer3_label = Label(self.group2_frame, fg="white", bg="#26282d", textvariable=self.layer3_tilelabel)
         self.layer3_label.grid(row=4, column=0, padx=2, pady=2, sticky="ne")
         self.layer3_entry = Entry(self.group2_frame, textvariable=self.layer3_name, borderwidth=0, fg="white", bg="#1f2023", width=50)
         self.layer3_entry.grid(row=4, column=1, ipady=5, ipadx=4, pady=(0, 5))
 
         # VColor
-        self.vcolor_label = Label(self.group2_frame, fg="white", bg="#26282d", text="Vcolor:")
+        self.vcolor_label = Label(self.group2_frame, fg="white", bg="#26282d", textvariable=self.vcolor_tilelabel)
         self.vcolor_label.grid(row=5, column=0, padx=2, pady=2, sticky="ne")
         self.vcolor_entry = Entry(self.group2_frame, textvariable=self.vcolor_name, borderwidth=0, fg="white", bg="#1f2023", width=50)
         self.vcolor_entry.grid(row=5, column=1, ipady=5, ipadx=4, pady=(0, 5))
@@ -152,13 +161,13 @@ class tkGUI:
         self.group3_label.grid(row=0, column=0, columnspan=3, pady=(0,5), sticky="n")
         
         # Name
-        self.map_label = Label(self.group3_frame, fg="white", bg="#26282d", text="Name:")
+        self.map_label = Label(self.group3_frame, fg="white", bg="#26282d", text="Name")
         self.map_label.grid(row=1, column=0, padx=(6,0), pady=(2,0), sticky="ne")
         self.map_entry = Entry(self.group3_frame, textvariable=self.map_name, borderwidth=0, fg="white", bg="#1f2023", width=50)
         self.map_entry.grid(row=1, column=1, ipady=5, ipadx=8)
         
         # Size
-        self.grid_label = Label(self.group3_frame, fg="white", bg="#26282d", text="Size:")
+        self.grid_label = Label(self.group3_frame, fg="white", bg="#26282d", text="Size")
         self.grid_label.grid(row=2, column=0, padx=2, pady=(19,0), sticky="ne")
         self.grid_slider = Scale(self.group3_frame, from_=1, fg="white", bg="#26282d", highlightthickness=0, to=64, orient="horizontal", variable=self.map_size, command=self.update_grid, width=20, length=318)
         self.grid_slider.grid(row=2, column=1, columnspan=2, padx=(0,8), sticky="n")
@@ -168,14 +177,14 @@ class tkGUI:
         self.slider_frame.grid(row=3, column=0, columnspan=3)
 
         # X Offset Slider
-        self.offset_x_label = Label(self.slider_frame, fg="white", bg="#26282d", text="X:")
+        self.offset_x_label = Label(self.slider_frame, fg="white", bg="#26282d", text="X")
         self.offset_x_label.grid(row=0, column=0, padx=(32,2), pady=(20,0), sticky="n")
         self.offset_x_slider = Scale(self.slider_frame, from_=0, to_=64, fg="white",bg="#26282d", highlightthickness=0, orient="horizontal", variable=self.map_offsetx, command=self.update_grid, width=20, length=139)
         self.offset_x_slider.grid(row=0, column=1, padx=(2,10))
 
         # Y Offset Slider
-        self.offset_y_label = Label(self.slider_frame, fg="white", bg="#26282d", text="Y:")
-        self.offset_y_label.grid(row=0, column=2, padx=(5,2), pady=(20,0), sticky="n")
+        self.offset_y_label = Label(self.slider_frame, fg="white", bg="#26282d", text="Y")
+        self.offset_y_label.grid(row=0, column=2, padx=(2,2), pady=(20,0), sticky="n")
         self.offset_y_slider = Scale(self.slider_frame, from_=0, to_=64, fg="white",bg="#26282d", highlightthickness=0, orient="horizontal", variable=self.map_offsety, command=self.update_grid, width=20, length=139)
         self.offset_y_slider.grid(row=0, column=3, padx=(5,10))
 
@@ -227,15 +236,6 @@ class tkGUI:
 
 # ----------------------------------------------------------------------------------------------
 # ----------------------------------------- GUI ------------------------------------------------
-# -------------------------------------- Functions ---------------------------------------------
-# --------------------------------------- Logging ----------------------------------------------
-    # Redirect stdout and error
-        self.old_stdout = sys.stdout
-        self.old_stderr = sys.stderr
-        sys.stdout = self
-        sys.stderr = self
-# ----------------------------------------------------------------------------------------------
-# ----------------------------------------- GUI ------------------------------------------------
 # --------------------------------------- Startup ----------------------------------------------
 
         print("TextureMap Tiler")
@@ -244,9 +244,11 @@ class tkGUI:
         self.load_settings()
         self.update_grid()
         print("Ready")
-        
-    def gui_logger(self, message):
-        self.write(message)
+
+# ----------------------------------------------------------------------------------------------
+# ----------------------------------------- GUI ------------------------------------------------
+# --------------------------------------- Methods ----------------------------------------------
+# --------------------------------------- Logging ----------------------------------------------
 
     def write(self, message):
         self.output_text.config(state=tk.NORMAL)  # Enable editing
@@ -254,12 +256,9 @@ class tkGUI:
         self.output_text.config(state=tk.DISABLED)  # Disable editing
         self.output_text.yview(tk.END)  # Scroll to end
 
-    def flush(self):
-        pass
-
 # ----------------------------------------------------------------------------------------------
 # ----------------------------------------- GUI ------------------------------------------------
-# -------------------------------------- Functions ---------------------------------------------
+# --------------------------------------- Methods ----------------------------------------------
 # ---------------------------------------- Input -----------------------------------------------
 
     def browse_input(self):
@@ -274,7 +273,7 @@ class tkGUI:
 
 # ----------------------------------------------------------------------------------------------
 # ----------------------------------------- GUI ------------------------------------------------
-# -------------------------------------- Functions ---------------------------------------------
+# --------------------------------------- Methods ----------------------------------------------
 # ------------------------------------ Settings Window -----------------------------------------
 
     def open_config_window(self):
@@ -288,7 +287,7 @@ class tkGUI:
 
         # Window Title
         window_label = Label(config_window, text="Exported Tile Settings", bg="#26282d", fg="white", font=("Helvetica", 12, "bold"))
-        window_label.grid(row=0, column=0, columnspan=7, pady=(10, 10), sticky="n")
+        window_label.grid(row=0, column=0, columnspan=7, pady=(15, 10), sticky="n")
 
         # Configure rows/columns to not stretch
         for col in range(4):
@@ -297,6 +296,8 @@ class tkGUI:
             config_window.grid_rowconfigure(row, weight=0)
 
         # Top labels for Resolution and Bit Depth
+        resolution_label = Label(config_window, text="Name", bg="#26282d", fg="white")
+        resolution_label.grid(row=1, column=0, padx=(10,0), pady=3, sticky="n")
         resolution_label = Label(config_window, text="Resolution", bg="#26282d", fg="white")
         resolution_label.grid(row=1, column=1, padx=2, pady=3, sticky="n")
         resolution_label = Label(config_window, text="Format", bg="#26282d", fg="white")
@@ -307,8 +308,8 @@ class tkGUI:
         bit_depth_label.grid(row=1, column=6, columnspan=3, padx=(7,15), pady=3, sticky="n")
 
 #-------# Height
-        height_label = Label(config_window, text="Height:", bg="#26282d", fg="white")
-        height_label.grid(row=2, column=0, padx=(10, 0), sticky="e")
+        height_label_entry = Entry(config_window, textvariable=self.height_tilelabel, borderwidth=0, fg="white", bg="#1f2023", width=10)
+        height_label_entry.grid(row=2, column=0, padx=(15,2), pady=3, ipadx=3, ipady=4)
         # Resolution
         height_tileresolution_entry = Entry(config_window, textvariable=self.height_tileresolution, borderwidth=0, fg="white", bg="#1f2023", width=10)
         height_tileresolution_entry.grid(row=2, column=1, padx=0, pady=3, ipadx=3, ipady=4)
@@ -329,8 +330,8 @@ class tkGUI:
         height_istilegrayscale_toggle.grid(row=2, column=6, pady=3, padx=(10, 15), ipadx=2, ipady=2)
 
 #-------# Layer 1
-        layer1_label = Label(config_window, text="Layer 1:", bg="#26282d", fg="white")
-        layer1_label.grid(row=3, column=0, padx=(10, 0), sticky="e")
+        layer1_label_entry = Entry(config_window, textvariable=self.layer1_tilelabel, borderwidth=0, fg="white", bg="#1f2023", width=10)
+        layer1_label_entry.grid(row=3, column=0, padx=(15,0), pady=3, ipadx=3, ipady=4)
         # Resolution
         layer1_tileresolution_entry = Entry(config_window, textvariable=self.layer1_tileresolution, borderwidth=0, fg="white", bg="#1f2023", width=10)
         layer1_tileresolution_entry.grid(row=3, column=1, padx=2, pady=3, ipadx=3, ipady=4)
@@ -351,8 +352,8 @@ class tkGUI:
         layer1_istilegrayscale_toggle.grid(row=3, column=6, pady=3, padx=(10, 15), ipadx=2, ipady=2)
 
 #-------# Layer 2
-        layer2_label = Label(config_window, text="Layer 2:", bg="#26282d", fg="white")
-        layer2_label.grid(row=4, column=0, padx=(10, 0), sticky="e")
+        layer2_label_entry = Entry(config_window, textvariable=self.layer2_tilelabel, borderwidth=0, fg="white", bg="#1f2023", width=10)
+        layer2_label_entry.grid(row=4, column=0, padx=(15,2), pady=3, ipadx=3, ipady=4)
         # Resolution
         layer2_tileresolution_entry = Entry(config_window, textvariable=self.layer2_tileresolution, borderwidth=0, fg="white", bg="#1f2023", width=10)
         layer2_tileresolution_entry.grid(row=4, column=1, padx=2, pady=3, ipadx=3, ipady=4)
@@ -373,8 +374,8 @@ class tkGUI:
         layer2_istilegrayscale_toggle.grid(row=4, column=6, pady=3, padx=(10, 15), ipadx=2, ipady=2)
 
 #-------# Layer 3
-        layer3_label = Label(config_window, text="Layer 3:", bg="#26282d", fg="white")
-        layer3_label.grid(row=5, column=0, padx=(10, 0), sticky="e")
+        layer3_label_entry = Entry(config_window, textvariable=self.layer3_tilelabel, borderwidth=0, fg="white", bg="#1f2023", width=10)
+        layer3_label_entry.grid(row=5, column=0, padx=(15,2), pady=3, ipadx=3, ipady=4)
         # Resolution
         layer3_tileresolution_entry = Entry(config_window, textvariable=self.layer3_tileresolution, borderwidth=0, fg="white", bg="#1f2023", width=10)
         layer3_tileresolution_entry.grid(row=5, column=1, padx=2, pady=3, ipadx=3, ipady=4)
@@ -395,8 +396,8 @@ class tkGUI:
         layer3_istilegrayscale_toggle.grid(row=5, column=6, pady=3, padx=(10, 15), ipadx=2, ipady=2)
 
 #-------# VColor
-        vcolor_label = Label(config_window, text="Vcolor:", bg="#26282d", fg="white")
-        vcolor_label.grid(row=6, column=0, padx=(10, 0), sticky="e")
+        vcolor_label_entry = Entry(config_window, textvariable=self.vcolor_tilelabel, borderwidth=0, fg="white", bg="#1f2023", width=10)
+        vcolor_label_entry.grid(row=6, column=0, padx=(15,2), pady=3, ipadx=3, ipady=4)
         # Resolution
         vcolor_tileresolution_entry = Entry(config_window, textvariable=self.vcolor_tileresolution, borderwidth=0, fg="white", bg="#1f2023", width=10)
         vcolor_tileresolution_entry.grid(row=6, column=1, padx=2, pady=3, ipadx=3, ipady=4)
@@ -422,7 +423,7 @@ class tkGUI:
 
 # ----------------------------------------------------------------------------------------------
 # ----------------------------------------- GUI ------------------------------------------------
-# -------------------------------------- Functions ---------------------------------------------
+# --------------------------------------- Methods ----------------------------------------------
 # ------------------------------------- Grid Drawing -------------------------------------------
 
     # 65x65 lines to create a grid of 64 squares
@@ -456,7 +457,7 @@ class tkGUI:
             
 # ----------------------------------------------------------------------------------------------
 # ----------------------------------------- GUI ------------------------------------------------
-# -------------------------------------- Functions ---------------------------------------------
+# --------------------------------------- Methods ----------------------------------------------
 # ------------------------------------ Process Tiles -------------------------------------------
 
     def start_processing(self):
@@ -474,6 +475,12 @@ class tkGUI:
         offset_x = self.offset_x_slider.get()
         offset_y = self.offset_y_slider.get()
         outputnum = 0
+
+        height_tilelabel = self.height_tilelabel.get()
+        layer1_tilelabel = self.layer1_tilelabel.get()
+        layer2_tilelabel = self.layer2_tilelabel.get()
+        layer3_tilelabel = self.layer3_tilelabel.get()
+        vcolor_tilelabel = self.vcolor_tilelabel.get()
 
         height_tileresolution = self.height_tileresolution.get()
         layer1_tileresolution = self.layer1_tileresolution.get()
@@ -515,34 +522,34 @@ class tkGUI:
 
                     # If files exist and are selected for export, create a task for each one
                     if self.height_exporttoggle.get() and self.height_name.get() and os.path.exists(height_dir):
-                        futures.append((convert_height, height_dir, output_dir, map_name, map_size, offset_x, offset_y, height_tilebitdepth, height_tileformat, height_istilegrayscale, height_tileresolution))
+                        futures.append((convert_height, height_dir, output_dir, map_name, map_size, offset_x, offset_y, height_tilelabel, height_tilebitdepth, height_tileformat, height_istilegrayscale, height_tileresolution))
                     if self.layer1_exporttoggle.get() and self.layer1_name.get() and os.path.exists(layer1_dir):
-                        futures.append((convert_layer1, layer1_dir, output_dir, map_name, map_size, offset_x, offset_y, layer1_tilebitdepth, layer1_tileformat, layer1_istilegrayscale, layer1_tileresolution))
+                        futures.append((convert_layer1, layer1_dir, output_dir, map_name, map_size, offset_x, offset_y, layer1_tilelabel, layer1_tilebitdepth, layer1_tileformat, layer1_istilegrayscale, layer1_tileresolution))
                     if self.layer2_exporttoggle.get() and self.layer2_name.get() and os.path.exists(layer2_dir):
-                        futures.append((convert_layer2, layer2_dir, output_dir, map_name, map_size, offset_x, offset_y, layer2_tilebitdepth, layer2_tileformat, layer2_istilegrayscale, layer2_tileresolution))
+                        futures.append((convert_layer2, layer2_dir, output_dir, map_name, map_size, offset_x, offset_y, layer2_tilelabel, layer2_tilebitdepth, layer2_tileformat, layer2_istilegrayscale, layer2_tileresolution))
                     if self.layer3_exporttoggle.get() and self.layer3_name.get() and os.path.exists(layer3_dir):
-                        futures.append((convert_layer3, layer3_dir, output_dir, map_name, map_size, offset_x, offset_y, layer3_tilebitdepth, layer3_tileformat, layer3_istilegrayscale, layer3_tileresolution))
+                        futures.append((convert_layer3, layer3_dir, output_dir, map_name, map_size, offset_x, offset_y, layer3_tilelabel, layer3_tilebitdepth, layer3_tileformat, layer3_istilegrayscale, layer3_tileresolution))
                     if self.vcolor_exporttoggle.get() and self.vcolor_name.get() and os.path.exists(vcolor_dir):
-                        futures.append((convert_vcolor, vcolor_dir, output_dir, map_name, map_size, offset_x, offset_y, vcolor_tilebitdepth, vcolor_tileformat, vcolor_istilegrayscale, vcolor_tileresolution))
+                        futures.append((convert_vcolor, vcolor_dir, output_dir, map_name, map_size, offset_x, offset_y, vcolor_tilelabel, vcolor_tilebitdepth, vcolor_tileformat, vcolor_istilegrayscale, vcolor_tileresolution))
                     
                     # If there are tasks, add them to the processing pool
                     if futures:
                         def process_tasks():
 
-                            # Create generic labels for printing to log
+                            # Get file labels for printing to log
                             file_info = [
-                                ("Height", self.height_exporttoggle.get(), self.height_name.get()),
-                                ("Layer1", self.layer1_exporttoggle.get(), self.layer1_name.get()),
-                                ("Layer2", self.layer2_exporttoggle.get(), self.layer2_name.get()),
-                                ("Layer3", self.layer3_exporttoggle.get(), self.layer3_name.get()),
-                                ("Vcolor", self.vcolor_exporttoggle.get(), self.vcolor_name.get())
+                                (self.height_tilelabel.get(), self.height_exporttoggle.get(), self.height_name.get()),
+                                (self.layer1_tilelabel.get(), self.layer1_exporttoggle.get(), self.layer1_name.get()),
+                                (self.layer2_tilelabel.get(), self.layer2_exporttoggle.get(), self.layer2_name.get()),
+                                (self.layer3_tilelabel.get(), self.layer3_exporttoggle.get(), self.layer3_name.get()),
+                                (self.vcolor_tilelabel.get(), self.vcolor_exporttoggle.get(), self.vcolor_name.get())
                             ]
                             
                             # Check if given filename has an extension
                             def has_file_extension(name):
                                 return name.endswith(('.txt', '.csv', '.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif'))
                             
-                            # If an extension is used that means the file will get processed so add the generic label to the starting message array
+                            # If an extension is used that means the file will get processed so add the label to the starting message array
                             process_files = [
                                 label for label, export_flag, file_name in file_info
                                 if export_flag and file_name and has_file_extension(file_name)
@@ -581,7 +588,7 @@ class tkGUI:
 
 # ----------------------------------------------------------------------------------------------
 # ----------------------------------------- GUI ------------------------------------------------
-# -------------------------------------- Functions ---------------------------------------------
+# --------------------------------------- Methods ----------------------------------------------
 # ------------------------------------ Loading/Saving  -----------------------------------------
 
     def on_close(self):
@@ -592,13 +599,12 @@ class tkGUI:
     def save_settings(self):
         # Save settings in plain text file
         with open("savedsettings.txt", "w") as f:
-            # Saving existing settings
             f.write(self.input_dir.get() + "\n")
             f.write(self.output_dir.get() + "\n")
             f.write(self.map_name.get() + "\n")
-            f.write(str(self.map_size.get()) + "\n")  # Convert int to str
-            f.write(str(self.map_offsetx.get()) + "\n")  # Convert int to str
-            f.write(str(self.map_offsety.get()) + "\n")  # Convert int to str
+            f.write(str(self.map_size.get()) + "\n")
+            f.write(str(self.map_offsetx.get()) + "\n")
+            f.write(str(self.map_offsety.get()) + "\n")
             f.write(self.height_name.get() + "\n")
             f.write(self.layer1_name.get() + "\n")
             f.write(self.layer2_name.get() + "\n")
@@ -609,6 +615,11 @@ class tkGUI:
             f.write(str(self.layer2_exporttoggle.get()) + "\n")
             f.write(str(self.layer3_exporttoggle.get()) + "\n")
             f.write(str(self.vcolor_exporttoggle.get()) + "\n")
+            f.write(self.height_tilelabel.get() + "\n")
+            f.write(self.layer1_tilelabel.get() + "\n")
+            f.write(self.layer2_tilelabel.get() + "\n")
+            f.write(self.layer3_tilelabel.get() + "\n")
+            f.write(self.vcolor_tilelabel.get() + "\n")
             f.write(self.height_tileresolution.get() + "\n")
             f.write(self.layer1_tileresolution.get() + "\n")
             f.write(self.layer2_tileresolution.get() + "\n")
@@ -655,6 +666,11 @@ class tkGUI:
                 self.layer3_exporttoggle.set(int(layer3_exporttoggle_line) if layer3_exporttoggle_line else 0)
                 vcolor_exporttoggle_line = f.readline().strip()
                 self.vcolor_exporttoggle.set(int(vcolor_exporttoggle_line) if vcolor_exporttoggle_line else 0)
+                self.height_tilelabel.set(f.readline().strip())
+                self.layer1_tilelabel.set(f.readline().strip())
+                self.layer2_tilelabel.set(f.readline().strip())
+                self.layer3_tilelabel.set(f.readline().strip())
+                self.vcolor_tilelabel.set(f.readline().strip())
                 self.height_tileresolution.set(f.readline().strip())
                 self.layer1_tileresolution.set(f.readline().strip())
                 self.layer2_tileresolution.set(f.readline().strip())
@@ -686,14 +702,13 @@ class tkGUI:
                 vcolor_istilegrayscale_line = f.readline().strip()
                 self.vcolor_istilegrayscale.set(int(vcolor_istilegrayscale_line) if vcolor_istilegrayscale_line else 0)
             print("Loaded settings:", self.map_name.get()) if self.map_name.get() else None
+        
+        # If settings file doesn't exist, create it
         else:
-
-            # If file doesn't exist, create it
-            with open("savedsettings.txt", "w") as f:
-                f.write("\n" * 16)  # Fill new config with placeholder lines
+            with open("savedsettings.txt", "w") as f: f.write("\n" * 36)
             print("savedsettings.txt not found, creating a new one...")
         
-        # Set Slider Positions
+        # Load Slider Positions
         self.map_size.set(self.map_size.get())
         self.offset_x_slider.set(self.map_offsetx.get())
         self.offset_y_slider.set(self.map_offsety.get())
