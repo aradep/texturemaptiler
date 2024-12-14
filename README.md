@@ -4,9 +4,6 @@ A tool for cutting texture maps into tiles.
 
 ##### This project is bundled with **ImageMagick**. See [ImageMagickLicense.txt](./ImageMagickLicense.txt) for the full ImageMagick license.
 
-## Download
-Get the pre-built Windows executable [here](https://github.com/aradep/texturemaptiler/releases)
-
 ---------------
 ### How to Build
 
@@ -14,7 +11,7 @@ Prerequisites
 
     Python 3.x
     PyInstaller
-    ImageMagick (Place in lib/imagemagick/ folder)
+    ImageMagick
 
 ---------------
 
