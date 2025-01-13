@@ -3,8 +3,11 @@ A tool for cutting texture maps into tiles.
 
 ##### This project is bundled with **ImageMagick**. See [ImageMagickLicense.txt](./ImageMagickLicense.txt) for the full ImageMagick license.
 
+
 ## Download
 Get the pre-built Windows executable [here](https://github.com/aradep/texturemaptiler/releases)
+
+![gui](https://github.com/user-attachments/assets/91cb494d-6562-437f-9ba5-3c0e88e12060)
 
 ### How to Use
 Directories
